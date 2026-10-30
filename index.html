@@ -1,0 +1,605 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#ff6b6b">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="记日子">
+<title>记日子</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon.svg">
+<style>
+  :root {
+    --bg: #f7f5f0;
+    --card: #ffffff;
+    --text: #2b2620;
+    --text-sub: #9a917f;
+    --accent: #ff6b6b;
+    --shadow: 0 2px 12px rgba(80, 60, 30, .07);
+    --radius: 16px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #171512;
+      --card: #232019;
+      --text: #f0ebe1;
+      --text-sub: #8d8574;
+      --shadow: 0 2px 12px rgba(0, 0, 0, .35);
+    }
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html { height: 100%; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", "Segoe UI", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100%;
+    padding-bottom: calc(90px + env(safe-area-inset-bottom));
+  }
+
+  /* ===== 顶部 ===== */
+  header {
+    position: sticky; top: 0; z-index: 10;
+    background: var(--bg);
+    padding: calc(18px + env(safe-area-inset-top)) 20px 12px;
+  }
+  .head-row { display: flex; align-items: center; justify-content: space-between; }
+  .app-title { font-size: 24px; font-weight: 800; letter-spacing: 1px; }
+  .app-title span { color: var(--accent); }
+  .install-btn {
+    display: none;
+    font-size: 12px; color: #fff; background: var(--accent);
+    border: none; border-radius: 999px; padding: 6px 12px; cursor: pointer;
+  }
+  .install-btn.show { display: block; }
+  .today-line { margin-top: 4px; font-size: 13px; color: var(--text-sub); }
+
+  /* ===== 列表 ===== */
+  main { padding: 8px 16px 0; }
+  .card {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 16px;
+    margin-bottom: 12px;
+    cursor: pointer;
+    animation: pop .25s ease;
+    user-select: none; -webkit-user-select: none; -webkit-touch-callout: none;
+    transition: transform .12s ease, opacity .12s ease;
+  }
+  .card.pressing { transform: scale(.972); opacity: .82; }
+  @keyframes pop { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+  .card-top { display: flex; align-items: center; gap: 12px; }
+  .emoji-bubble {
+    width: 46px; height: 46px; border-radius: 14px; flex: none;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 24px;
+  }
+  .card-name { font-size: 16px; font-weight: 700; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .card-date { font-size: 12px; color: var(--text-sub); margin-top: 2px; }
+  .day-chip {
+    flex: none; font-size: 12px; font-weight: 700; color: var(--text-sub);
+    background: var(--bg); border-radius: 999px; padding: 4px 10px;
+    font-variant-numeric: tabular-nums;
+  }
+  .card-time { margin-top: 12px; padding-left: 58px; }
+  .t-big {
+    font-size: 22px; font-weight: 800; letter-spacing: .5px;
+    font-variant-numeric: tabular-nums;
+  }
+  .t-big .unit { font-size: 13px; font-weight: 600; color: var(--text-sub); margin-left: 1px; }
+  .t-sub { margin-top: 3px; font-size: 13px; color: var(--text-sub); font-variant-numeric: tabular-nums; }
+  .card.today-event .t-big { color: var(--accent); }
+
+  /* ===== 空状态 ===== */
+  .empty { text-align: center; padding: 70px 30px; color: var(--text-sub); }
+  .empty .big-emoji { font-size: 56px; margin-bottom: 16px; }
+  .empty p { font-size: 14px; line-height: 1.8; }
+  .empty button {
+    margin-top: 20px; font-size: 15px; font-weight: 700; color: #fff;
+    background: var(--accent); border: none; border-radius: 999px;
+    padding: 12px 32px; cursor: pointer;
+  }
+
+  /* ===== 悬浮按钮 ===== */
+  .fab {
+    position: fixed; right: 20px; bottom: calc(24px + env(safe-area-inset-bottom));
+    width: 58px; height: 58px; border-radius: 50%;
+    background: linear-gradient(135deg, #ff6b6b, #ff922b);
+    color: #fff; font-size: 30px; line-height: 1;
+    border: none; cursor: pointer; z-index: 20;
+    box-shadow: 0 6px 20px rgba(255, 107, 107, .45);
+    display: flex; align-items: center; justify-content: center;
+    transition: transform .15s ease;
+  }
+  .fab:active { transform: scale(.92); }
+
+  /* ===== 底部弹窗 ===== */
+  .mask {
+    position: fixed; inset: 0; background: rgba(30, 20, 10, .45);
+    opacity: 0; pointer-events: none; transition: opacity .25s ease; z-index: 30;
+  }
+  .mask.open { opacity: 1; pointer-events: auto; }
+  .sheet {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 31;
+    background: var(--card);
+    border-radius: 22px 22px 0 0;
+    padding: 22px 20px calc(24px + env(safe-area-inset-bottom));
+    transform: translateY(100%); transition: transform .28s cubic-bezier(.22, 1, .36, 1);
+    max-height: 88vh; overflow-y: auto;
+  }
+  .sheet.open { transform: none; }
+  .sheet-handle { width: 40px; height: 4px; border-radius: 2px; background: var(--text-sub); opacity: .3; margin: 0 auto 18px; }
+  .sheet h2 { font-size: 18px; margin-bottom: 18px; text-align: center; }
+
+  .field-label { font-size: 13px; color: var(--text-sub); margin: 16px 0 8px; }
+  .emoji-grid { display: grid; grid-template-columns: repeat(8, 1fr); gap: 6px; }
+  .emoji-grid button {
+    font-size: 22px; padding: 6px 0; border-radius: 12px;
+    border: 2px solid transparent; background: var(--bg); cursor: pointer;
+  }
+  .emoji-grid button.sel { border-color: var(--accent); background: transparent; }
+
+  .input {
+    width: 100%; font-size: 16px; color: var(--text);
+    background: var(--bg); border: 2px solid transparent; border-radius: 14px;
+    padding: 13px 14px; outline: none; font-family: inherit;
+  }
+  .input:focus { border-color: var(--accent); }
+
+  .color-row { display: flex; gap: 12px; flex-wrap: wrap; }
+  .color-row button {
+    width: 34px; height: 34px; border-radius: 50%; cursor: pointer;
+    border: 3px solid transparent; transition: transform .12s ease;
+  }
+  .color-row button.sel { border-color: var(--text); transform: scale(1.12); }
+
+  .btn-row { display: flex; gap: 12px; margin-top: 24px; }
+  .btn {
+    flex: 1; font-size: 16px; font-weight: 700; padding: 14px 0;
+    border-radius: 14px; border: none; cursor: pointer;
+  }
+  .btn-save { background: var(--accent); color: #fff; }
+  .btn-cancel { background: var(--bg); color: var(--text-sub); }
+  .btn-del { background: transparent; color: #ff6b6b; margin-top: 10px; font-size: 14px; }
+
+  /* ===== 全屏详情 ===== */
+  .detail {
+    position: fixed; inset: 0; z-index: 40;
+    display: flex; flex-direction: column; align-items: center; justify-content: flex-start;
+    padding: calc(70px + env(safe-area-inset-top)) 26px calc(46px + env(safe-area-inset-bottom));
+    background: var(--bg);
+    text-align: center;
+    opacity: 0; pointer-events: none; transform: scale(.94);
+    transition: opacity .26s ease, transform .26s cubic-bezier(.22, 1, .36, 1);
+    overflow-y: auto;
+  }
+  .detail.open { opacity: 1; pointer-events: auto; transform: none; }
+  .detail-back {
+    position: absolute; left: 18px; top: calc(14px + env(safe-area-inset-top));
+    width: 40px; height: 40px; border-radius: 50%; border: none;
+    background: rgba(128, 118, 100, .12); color: var(--text);
+    font-size: 24px; line-height: 1; cursor: pointer;
+    display: flex; align-items: center; justify-content: center; padding-bottom: 3px;
+  }
+  .detail-emoji {
+    width: 108px; height: 108px; border-radius: 34px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 56px; margin-top: auto; margin-bottom: 26px;
+  }
+  .detail-name { font-size: 21px; font-weight: 800; letter-spacing: .5px; }
+  .detail-date { font-size: 13px; color: var(--text-sub); margin-top: 6px; }
+  .detail-time { margin-top: 40px; }
+  .detail-big {
+    font-size: clamp(32px, 10vw, 54px); font-weight: 800; line-height: 1.25;
+    letter-spacing: .5px; font-variant-numeric: tabular-nums;
+    word-break: break-word;
+  }
+  .detail-big .unit { font-size: .48em; font-weight: 700; color: var(--text-sub); margin-left: 2px; }
+  .detail-sub {
+    margin-top: 12px; font-size: 17px; color: var(--text-sub);
+    font-variant-numeric: tabular-nums; letter-spacing: 1px;
+  }
+  .detail-days { margin-top: 44px; margin-bottom: auto; font-size: 13px; color: var(--text-sub); }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="head-row">
+    <div class="app-title">记<span>日子</span></div>
+    <button class="install-btn" id="installBtn">安装到主屏幕</button>
+  </div>
+  <div class="today-line" id="todayLine"></div>
+</header>
+
+<main id="list"></main>
+
+<button class="fab" id="fab" aria-label="添加">＋</button>
+
+<div class="mask" id="mask"></div>
+<div class="sheet" id="sheet">
+  <div class="sheet-handle"></div>
+  <h2 id="sheetTitle">添加日子</h2>
+
+  <div class="field-label">选个图标</div>
+  <div class="emoji-grid" id="emojiGrid"></div>
+
+  <div class="field-label">名称</div>
+  <input class="input" id="nameInput" type="text" maxlength="20" placeholder="例如：恋爱纪念日 / 入职 / 生日">
+
+  <div class="field-label">日期</div>
+  <input class="input" id="dateInput" type="date">
+
+  <div class="field-label">颜色</div>
+  <div class="color-row" id="colorRow"></div>
+
+  <div class="btn-row">
+    <button class="btn btn-cancel" id="cancelBtn">取消</button>
+    <button class="btn btn-save" id="saveBtn">保存</button>
+  </div>
+  <button class="btn btn-del" id="delBtn" style="display:none">删除这条记录</button>
+</div>
+
+<div class="detail" id="detail">
+  <button class="detail-back" id="detailBack" aria-label="返回">‹</button>
+  <div class="detail-emoji" id="dEmoji"></div>
+  <div class="detail-name" id="dName"></div>
+  <div class="detail-date" id="dDate"></div>
+  <div class="detail-time">
+    <div class="detail-big" id="dBig"></div>
+    <div class="detail-sub" id="dSub"></div>
+  </div>
+  <div class="detail-days" id="dDays"></div>
+</div>
+
+<script>
+'use strict';
+
+/* ============ 数据 ============ */
+const KEY = 'jiri.items.v1';
+let items = [];
+try { items = JSON.parse(localStorage.getItem(KEY)) || []; } catch (e) { items = []; }
+function save() { localStorage.setItem(KEY, JSON.stringify(items)); }
+
+const EMOJIS = ['❤️','💍','🎂','','🏠','💼','','📱','','🐶','','🌸','⭐','🏆','','⚽','','✈️','','💪','📖','☕','','🍀'];
+const COLORS = ['#ff6b6b','#ffa94d','#fcc419','#69db7c','#38d9a9','#4dabf7','#748ffc','#9775fa','#f783ac','#4ecdc4'];
+
+let editingId = null;
+let selEmoji = '❤️';
+let selColor = COLORS[0];
+
+/* ============ 时间计算 ============ */
+const WEEK = ['日','一','二','三','四','五','六'];
+function pad(n) { return n < 10 ? '0' + n : '' + n; }
+
+function parseDate(str) { // "YYYY-MM-DD" -> 当天 00:00:00
+  const [y, m, d] = str.split('-').map(Number);
+  return new Date(y, m - 1, d, 0, 0, 0, 0);
+}
+
+// 日历差：from(0点) 到 to 的 年/月/天，剩余 时/分/秒
+function diffParts(from, to) {
+  let y = to.getFullYear() - from.getFullYear();
+  let m = to.getMonth() - from.getMonth() + (to.getDate() < from.getDate() ? -1 : 0);
+  let d = to.getDate() - from.getDate();
+  if (d < 0) d += new Date(to.getFullYear(), to.getMonth(), 0).getDate();
+  if (m < 0) { m += 12; y -= 1; }
+  if (m < 0) { m += 12; y -= 1; }
+  const base = new Date(from.getFullYear(), from.getMonth(), from.getDate());
+  base.setFullYear(base.getFullYear() + y);
+  base.setMonth(base.getMonth() + m);
+  base.setDate(base.getDate() + d);
+  let rem = Math.max(0, (to - base) / 1000);
+  const h = Math.floor(rem / 3600);
+  const min = Math.floor(rem % 3600 / 60);
+  const s = Math.floor(rem % 60);
+  return { y, m, d, h, min, s };
+}
+
+function bigText(parts) { // 拼接非零的大字
+  const segs = [];
+  if (parts.y) segs.push(parts.y + '年');
+  if (parts.m) segs.push(parts.m + '个月');
+  if (parts.d) segs.push(parts.d + '天');
+  if (!segs.length) segs.push('0天');
+  return segs.map((t, i) => i === segs.length - 1
+    ? t.replace(/(天|个月|年)$/, '<span class="unit">$1</span>')
+    : t
+  ).join(' ');
+}
+
+function subText(parts) {
+  if (!parts.h && !parts.min && !parts.s) return '';
+  return parts.h + '时' + pad(parts.min) + '分' + pad(parts.s) + '秒';
+}
+
+function totalDays(ev, now) {
+  const ms = ev.getTime() - new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  return Math.abs(Math.round(ms / 86400000));
+}
+
+/* ============ 渲染 ============ */
+const listEl = document.getElementById('list');
+
+function render() {
+  const now = new Date();
+  // 按离今天远近排序
+  const sorted = [...items].sort((a, b) =>
+    totalDays(parseDate(a.date), now) - totalDays(parseDate(b.date), now));
+
+  if (!sorted.length) {
+    listEl.innerHTML = `
+      <div class="empty">
+        <div class="big-emoji">🗓️</div>
+        <p>还没有记录<br>点右下角 ＋ 记下第一个重要的日子吧</p>
+        <button onclick="openSheet()">添加日子</button>
+      </div>`;
+    return;
+  }
+
+  listEl.innerHTML = sorted.map(it => {
+    const ev = parseDate(it.date);
+    const future = ev.getTime() > now.getTime();
+    const parts = future ? diffParts(now, ev) : diffParts(ev, now);
+    const isToday = !future && !parts.y && !parts.m && !parts.d;
+    return `
+    <div class="card ${isToday ? 'today-event' : ''}" data-id="${it.id}">
+      <div class="card-top">
+        <div class="emoji-bubble" style="background:${it.color}22">${it.emoji}</div>
+        <div style="flex:1;min-width:0">
+          <div class="card-name">${escapeHtml(it.name)}</div>
+          <div class="card-date">${it.date} · 周${WEEK[ev.getDay()]}</div>
+        </div>
+        <div class="day-chip">${totalDays(ev, now)} 天</div>
+      </div>
+      <div class="card-time">
+        <div class="t-big" data-role="big"></div>
+        <div class="t-sub" data-role="sub"></div>
+      </div>
+    </div>`;
+  }).join('');
+
+  listEl.querySelectorAll('.card').forEach(bindCardPress);
+  tick();
+}
+
+/* 统一的显示文案计算 */
+function display(ev, now) {
+  const future = ev.getTime() > now.getTime();
+  if (future) {
+    const parts = diffParts(now, ev);
+    const rem = (ev - now) / 1000;
+    const rh = Math.floor(rem % 86400 / 3600);
+    const rmin = Math.floor(rem % 3600 / 60);
+    const rs = Math.floor(rem % 60);
+    return {
+      big: '还剩 ' + bigText(parts),
+      sub: (rh || rmin || rs) ? rh + '时' + pad(rmin) + '分' + pad(rs) + '秒' : '',
+      today: false
+    };
+  }
+  const parts = diffParts(ev, now);
+  if (!parts.y && !parts.m && !parts.d) return { big: '就是今天 🎉', sub: '', today: true };
+  return { big: bigText(parts), sub: subText(parts), today: false };
+}
+
+function tick() {
+  const now = new Date();
+  listEl.querySelectorAll('.card').forEach(c => {
+    const it = items.find(x => x.id === c.dataset.id);
+    if (!it) return;
+    const d = display(parseDate(it.date), now);
+    c.querySelector('[data-role=big]').innerHTML = d.big;
+    c.querySelector('[data-role=sub]').textContent = d.sub;
+    c.classList.toggle('today-event', d.today);
+  });
+  tickDetail(now);
+}
+
+/* ============ 点击进详情 / 长按编辑 ============ */
+function bindCardPress(card) {
+  let timer = null, longPressed = false, moved = false, sx = 0, sy = 0;
+
+  const cancel = () => {
+    clearTimeout(timer);
+    card.classList.remove('pressing');
+  };
+
+  card.addEventListener('pointerdown', e => {
+    if (e.button !== undefined && e.button > 0) return;
+    longPressed = false; moved = false;
+    sx = e.clientX; sy = e.clientY;
+    card.classList.add('pressing');
+    clearTimeout(timer);
+    timer = setTimeout(() => {
+      longPressed = true;
+      card.classList.remove('pressing');
+      if (navigator.vibrate) navigator.vibrate(18);
+      openSheet(card.dataset.id);
+    }, 450);
+  });
+
+  card.addEventListener('pointermove', e => {
+    if (moved) return;
+    if (Math.abs(e.clientX - sx) > 10 || Math.abs(e.clientY - sy) > 10) {
+      moved = true;
+      cancel();
+    }
+  });
+
+  card.addEventListener('pointerup', () => {
+    clearTimeout(timer);
+    card.classList.remove('pressing');
+    if (!longPressed && !moved) openDetail(card.dataset.id);
+    longPressed = false;
+  });
+
+  card.addEventListener('pointercancel', cancel);
+  card.addEventListener('pointerleave', cancel);
+  card.addEventListener('contextmenu', e => e.preventDefault());
+}
+
+/* ============ 全屏详情 ============ */
+const detailEl = document.getElementById('detail');
+let detailId = null;
+let detailPushed = false;
+
+function openDetail(id) {
+  const it = items.find(x => x.id === id);
+  if (!it) return;
+  detailId = id;
+  const ev = parseDate(it.date);
+  detailEl.style.backgroundImage =
+    `linear-gradient(168deg, ${it.color}33 0%, ${it.color}0f 40%, transparent 74%)`;
+  const em = document.getElementById('dEmoji');
+  em.textContent = it.emoji;
+  em.style.background = it.color + '22';
+  document.getElementById('dName').textContent = it.name;
+  document.getElementById('dDate').textContent =
+    `${ev.getFullYear()}年${ev.getMonth() + 1}月${ev.getDate()}日 · 周${WEEK[ev.getDay()]}`;
+  tickDetail();
+  detailEl.classList.add('open');
+  document.body.style.overflow = 'hidden';
+  try { history.pushState({ jiriDetail: id }, ''); detailPushed = true; }
+  catch (e) { detailPushed = false; }
+}
+
+function closeDetail(fromPop) {
+  if (!detailId) { detailPushed = false; return; }
+  detailId = null;
+  detailEl.classList.remove('open');
+  document.body.style.overflow = '';
+  if (!fromPop && detailPushed) { detailPushed = false; history.back(); return; }
+  detailPushed = false;
+}
+
+function tickDetail(now) {
+  if (!detailId) return;
+  const it = items.find(x => x.id === detailId);
+  if (!it) return;
+  now = now || new Date();
+  const ev = parseDate(it.date);
+  const d = display(ev, now);
+  document.getElementById('dBig').innerHTML = d.big;
+  document.getElementById('dSub').textContent = d.sub;
+  const days = totalDays(ev, now);
+  document.getElementById('dDays').textContent =
+    ev.getTime() > now.getTime() ? `距离这天还有 ${days} 天` : `从这天起已经 ${days} 天`;
+}
+
+document.getElementById('detailBack').addEventListener('click', () => closeDetail());
+window.addEventListener('popstate', () => closeDetail(true));
+
+function escapeHtml(s) {
+  return s.replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+}
+
+document.getElementById('todayLine').textContent =
+  `今天 ${new Date().getFullYear()}年${new Date().getMonth()+1}月${new Date().getDate()}日 星期${WEEK[new Date().getDay()]}`;
+
+/* ============ 弹窗 ============ */
+const mask = document.getElementById('mask');
+const sheet = document.getElementById('sheet');
+const nameInput = document.getElementById('nameInput');
+const dateInput = document.getElementById('dateInput');
+const emojiGrid = document.getElementById('emojiGrid');
+const colorRow = document.getElementById('colorRow');
+const delBtn = document.getElementById('delBtn');
+
+function buildPickers() {
+  emojiGrid.innerHTML = EMOJIS.map(e =>
+    `<button type="button" data-e="${e}">${e}</button>`).join('');
+  emojiGrid.querySelectorAll('button').forEach(b =>
+    b.addEventListener('click', () => { selEmoji = b.dataset.e; markSel(); }));
+  colorRow.innerHTML = COLORS.map(c =>
+    `<button type="button" data-c="${c}" style="background:${c}"></button>`).join('');
+  colorRow.querySelectorAll('button').forEach(b =>
+    b.addEventListener('click', () => { selColor = b.dataset.c; markSel(); }));
+  markSel();
+}
+function markSel() {
+  emojiGrid.querySelectorAll('button').forEach(b =>
+    b.classList.toggle('sel', b.dataset.e === selEmoji));
+  colorRow.querySelectorAll('button').forEach(b =>
+    b.classList.toggle('sel', b.dataset.c === selColor));
+}
+
+function openSheet(id) {
+  editingId = id || null;
+  const it = id ? items.find(x => x.id === id) : null;
+  document.getElementById('sheetTitle').textContent = it ? '编辑日子' : '添加日子';
+  delBtn.style.display = it ? 'block' : 'none';
+  selEmoji = it ? it.emoji : '❤️';
+  selColor = it ? it.color : COLORS[Math.floor(Math.random() * COLORS.length)];
+  nameInput.value = it ? it.name : '';
+  dateInput.value = it ? it.date : todayStr();
+  markSel();
+  mask.classList.add('open');
+  sheet.classList.add('open');
+  setTimeout(() => nameInput.focus(), 300);
+}
+function closeSheet() {
+  mask.classList.remove('open');
+  sheet.classList.remove('open');
+}
+function todayStr() {
+  const n = new Date();
+  return `${n.getFullYear()}-${pad(n.getMonth()+1)}-${pad(n.getDate())}`;
+}
+
+document.getElementById('fab').addEventListener('click', () => openSheet());
+mask.addEventListener('click', closeSheet);
+document.getElementById('cancelBtn').addEventListener('click', closeSheet);
+
+document.getElementById('saveBtn').addEventListener('click', () => {
+  const name = nameInput.value.trim() || '未命名';
+  const date = dateInput.value;
+  if (!date) { dateInput.focus(); return; }
+  if (editingId) {
+    const it = items.find(x => x.id === editingId);
+    Object.assign(it, { name, date, emoji: selEmoji, color: selColor });
+  } else {
+    items.push({ id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), name, date, emoji: selEmoji, color: selColor });
+  }
+  save(); closeSheet(); render();
+});
+
+delBtn.addEventListener('click', () => {
+  if (!editingId) return;
+  if (!confirm('确定删除这条记录吗？')) return;
+  items = items.filter(x => x.id !== editingId);
+  save(); closeSheet(); render();
+});
+
+/* ============ PWA：安装 + 离线 ============ */
+let deferredPrompt = null;
+window.addEventListener('beforeinstallprompt', e => {
+  e.preventDefault();
+  deferredPrompt = e;
+  document.getElementById('installBtn').classList.add('show');
+});
+document.getElementById('installBtn').addEventListener('click', async () => {
+  if (!deferredPrompt) return;
+  deferredPrompt.prompt();
+  await deferredPrompt.userChoice;
+  deferredPrompt = null;
+  document.getElementById('installBtn').classList.remove('show');
+});
+
+if ('serviceWorker' in navigator && location.protocol !== 'file:') {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('sw.js').catch(() => {});
+  });
+}
+
+/* ============ 启动 ============ */
+buildPickers();
+render();
+setInterval(tick, 1000);
+</script>
+</body>
+</html>
